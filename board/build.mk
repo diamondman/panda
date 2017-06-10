@@ -16,44 +16,49 @@ endif
 MACHINE = $(shell uname -m)
 OS = $(shell uname -o)
 
-ifeq ($(OS),GNU/Linux)
-  MACHINE := "$(MACHINE)-linux"
+ifneq (, $(shell which dfu-util))
+  DFU_UTILS = "dfu-util"
+else
+  DFU_UTILS = "./tools/dfu-util-$(MACHINE)"
+  ifeq ($(OS),GNU/Linux)
+    DFU_UTILS := "$(DFU_UTILS)-linux"
+  endif
 endif
 
 # this pushes the unchangable bootstub too
 all: obj/bootstub.$(PROJ_NAME).bin obj/$(PROJ_NAME).bin
 	./tools/enter_download_mode.py
-	./tools/dfu-util-$(MACHINE) -a 0 -s 0x08000000 -D obj/bootstub.$(PROJ_NAME).bin
-	./tools/dfu-util-$(MACHINE) -a 0 -s 0x08004000 -D obj/$(PROJ_NAME).bin
-	./tools/dfu-util-$(MACHINE) --reset-stm32 -a 0 -s 0x08000000
+	$(DFU_UTILS) -a 0 -s 0x08000000 -D obj/bootstub.$(PROJ_NAME).bin
+	$(DFU_UTILS) -a 0 -s 0x08004000 -D obj/$(PROJ_NAME).bin
+	$(DFU_UTILS) --reset-stm32 -a 0 -s 0x08000000
 
 dfu: obj/bootstub.$(PROJ_NAME).bin obj/$(PROJ_NAME).bin
-	./tools/dfu-util-$(MACHINE) -a 0 -s 0x08000000 -D obj/bootstub.$(PROJ_NAME).bin
-	./tools/dfu-util-$(MACHINE) -a 0 -s 0x08004000 -D obj/$(PROJ_NAME).bin
-	./tools/dfu-util-$(MACHINE) --reset-stm32 -a 0 -s 0x08000000
+	$(DFU_UTILS) -a 0 -s 0x08000000 -D obj/bootstub.$(PROJ_NAME).bin
+	$(DFU_UTILS) -a 0 -s 0x08004000 -D obj/$(PROJ_NAME).bin
+	$(DFU_UTILS) --reset-stm32 -a 0 -s 0x08000000
 
 bootstub: obj/bootstub.$(PROJ_NAME).bin
 	./tools/enter_download_mode.py
-	./tools/dfu-util-$(MACHINE) -a 0 -s 0x08000000 -D obj/bootstub.$(PROJ_NAME).bin
-	./tools/dfu-util-$(MACHINE) --reset-stm32 -a 0 -s 0x08000000
+	$(DFU_UTILS) -a 0 -s 0x08000000 -D obj/bootstub.$(PROJ_NAME).bin
+	$(DFU_UTILS) --reset-stm32 -a 0 -s 0x08000000
 
 main: obj/$(PROJ_NAME).bin
 	./tools/enter_download_mode.py
-	./tools/dfu-util-$(MACHINE) -a 0 -s 0x08004000 -D obj/$(PROJ_NAME).bin
-	./tools/dfu-util-$(MACHINE) --reset-stm32 -a 0 -s 0x08000000
+	$(DFU_UTILS) -a 0 -s 0x08004000 -D obj/$(PROJ_NAME).bin
+	$(DFU_UTILS) --reset-stm32 -a 0 -s 0x08000000
 
 ota: obj/$(PROJ_NAME).bin
 	curl http://192.168.0.10/stupdate --upload-file $<
 
-ifneq ($(wildcard ../.git/HEAD),) 
+ifneq ($(wildcard ../.git/HEAD),)
 obj/gitversion.h: ../.git/HEAD ../.git/index
 	echo "const uint8_t gitversion[] = \"$(shell git rev-parse HEAD)\";" > $@
 else
-ifneq ($(wildcard ../../.git/modules/panda/HEAD),) 
+ifneq ($(wildcard ../../.git/modules/panda/HEAD),)
 obj/gitversion.h: ../../.git/modules/panda/HEAD ../../.git/modules/panda/index
 	echo "const uint8_t gitversion[] = \"$(shell git rev-parse HEAD)\";" > $@
 else
-obj/gitversion.h: 
+obj/gitversion.h:
 	echo "const uint8_t gitversion[] = \"RELEASE\";" > $@
 endif
 endif
@@ -87,7 +92,6 @@ obj/$(PROJ_NAME).bin: obj/$(STARTUP_FILE).o obj/main.$(PROJ_NAME).o
 obj/bootstub.$(PROJ_NAME).bin: obj/$(STARTUP_FILE).o obj/bootstub.$(PROJ_NAME).o obj/sha.$(PROJ_NAME).o obj/rsa.$(PROJ_NAME).o
 	$(CC) $(CFLAGS) -o obj/bootstub.$(PROJ_NAME).elf $^
 	$(OBJCOPY) -v -O binary obj/bootstub.$(PROJ_NAME).elf $@
-	
+
 clean:
 	rm -f obj/*
-
